@@ -30,9 +30,10 @@ station_df = pd.read_excel(FILE_NAME, sheet_name='station')
 curve_df = pd.read_excel(FILE_NAME, sheet_name='curve')
 grad_df = pd.read_excel(FILE_NAME, sheet_name='grad')
 
-def grad_a(grad, rmc):
-    grad_degree = np.arctan(grad / 1000)
-    return g * np.sin(grad_degree) - rmc * g * np.cos(grad_degree) / m
+def grad_a(grad, k):
+    # grad_degree = np.arctan(grad / 1000)
+    # return g * np.sin(grad_degree) / k
+    return grad / 1000 / k
 
 def sign(x):
     return 1 if x == 1 else -1
@@ -99,16 +100,16 @@ def calc_static_limit() -> List[float]:
     y = interp_func(X)
     return y
 
-def calc_safev(static_limit_y, a) -> List[float]:
-    y = static_limit_y.copy()
+def calc_safev(static_limit_y, a, redundant=0) -> List[float]:
+    y = [y - redundant for y in static_limit_y]
     for i in range(2, len(y)+1):
         safev = np.sqrt(2 * a * x_step + y[-i + 1] ** 2)
         y[-i] = min(y[-i], safev)
 
     return y
 
-def calc_safev_with_extra_a(static_limit_y, extra_a, a) -> List[float]:
-    y = static_limit_y.copy()
+def calc_safev_with_extra_a(static_limit_y, extra_a, a, redundant=0) -> List[float]:
+    y = [y - redundant for y in static_limit_y]
     for i in range(2, len(y)+1):
         safev = np.sqrt(max(2 * (a + extra_a[-i]) * x_step + y[-i + 1] ** 2, 0))
         y[-i] = min(y[-i], safev)
@@ -130,18 +131,18 @@ if __name__ == '__main__':
     # plt.show()
 
     ebi_y = calc_safev_with_extra_a(static_limit_y, extra_a, 紧急制动率)
-    sbi_y = calc_safev_with_extra_a(static_limit_y, extra_a, 常用制动率)
+    sbi_y = calc_safev_with_extra_a(static_limit_y, extra_a, 常用制动率, ATO余量)
     # plt.plot(x, static_limit_y, 'b-')
     # plt.plot(ebi_x, ebi_y, 'r-')
     # plt.plot(sbi_x, sbi_y, 'g-')
     # plt.show()
     fig = go.Figure(data=[
-        go.Scatter(x=x, y=static_limit_y, name='Static Limit'),
-        go.Scatter(x=x, y=ebi_y, name='Emergency Brake'),
-        go.Scatter(x=x, y=sbi_y, name='Service Brake')
+        go.Scatter(x=x, y=static_limit_y, name='静态限速'),
+        go.Scatter(x=x, y=ebi_y, name='EBI'),
+        go.Scatter(x=x, y=sbi_y, name='SBI')
     ])
     fig.update_layout(
-        title='Braking Curves',
+        title='作业罢了',
         xaxis_title='Distance (m)',
         yaxis_title='Speed (km/h)',
         xaxis=dict(
