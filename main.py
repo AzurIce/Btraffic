@@ -1,5 +1,6 @@
 import pandas as pd
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -20,6 +21,9 @@ max_speed = 87 # km/h
 g = 9.81
 m = 800 * 10 ** 3 # kg
 
+x_step = 1
+X = np.linspace(0, max_distance, int(max_distance / x_step)).tolist()
+
 # Load the Excel file using pandas
 FILE_NAME = '线路条件数据.xlsx'
 station_df = pd.read_excel(FILE_NAME, sheet_name='station')
@@ -33,7 +37,7 @@ def grad_a(grad, rmc):
 def sign(x):
     return 1 if x == 1 else -1
 
-def calc_grad_a() -> Tuple[List[float], List[float]]:
+def calc_grad_a() -> List[float]:
     grad_a_segments: List[Tuple[Tuple[float, float], Tuple[float, float]]] = []
     for i in range(len(grad_df.index)):
         x1, y1 = grad_df.iloc[i, 0], grad_df.iloc[i, 2] * grad_a(sign(grad_df.iloc[i, 3]), 旋转质量系数)
@@ -59,11 +63,10 @@ def calc_grad_a() -> Tuple[List[float], List[float]]:
     points_y = [point[1] for point in points]
     interp_func = interp1d(points_x, points_y, kind='linear')
 
-    x = np.linspace(0, max_distance, max_distance * 100).tolist()
-    y = interp_func(x)
-    return x, y
+    y = interp_func(X)
+    return y
 
-def calc_static_limit() -> Tuple[List[float], List[float]]:
+def calc_static_limit() -> List[float]:
     static_limit_segments: List[Tuple[Tuple[float, float], Tuple[float, float]]] = []
     for i in range(len(station_df.index)):
         x1, y1 = station_df.iloc[i, 0], station_df.iloc[i, 2]
@@ -93,32 +96,30 @@ def calc_static_limit() -> Tuple[List[float], List[float]]:
     points_y = [point[1] for point in points]
     interp_func = interp1d(points_x, points_y, kind='linear')
 
-    x = np.linspace(0, max_distance, max_distance * 100).tolist()
-    y = interp_func(x)
-    return x, y
+    y = interp_func(X)
+    return y
 
-def calc_safev(static_limit_x, static_limit_y, a) -> Tuple[List[float], List[float]]:
-    x, y = static_limit_x.copy(), static_limit_y.copy()
-    delta_x = x[1] - x[0]
+def calc_safev(static_limit_y, a) -> List[float]:
+    y = static_limit_y.copy()
     for i in range(2, len(y)+1):
-        safev = np.sqrt(2 * a * delta_x + y[-i + 1] ** 2)
+        safev = np.sqrt(2 * a * x_step + y[-i + 1] ** 2)
         y[-i] = min(y[-i], safev)
 
-    return x, y
+    return y
 
-def calc_safev_with_extra_a(static_limit_x, static_limit_y, extra_a, a) -> Tuple[List[float], List[float]]:
-    x, y = static_limit_x.copy(), static_limit_y.copy()
-    delta_x = x[1] - x[0]
+def calc_safev_with_extra_a(static_limit_y, extra_a, a) -> List[float]:
+    y = static_limit_y.copy()
     for i in range(2, len(y)+1):
-        safev = np.sqrt(max(2 * (a + extra_a[-i]) * delta_x + y[-i + 1] ** 2, 0))
+        safev = np.sqrt(max(2 * (a + extra_a[-i]) * x_step + y[-i + 1] ** 2, 0))
         y[-i] = min(y[-i], safev)
 
-    return x, y
+    return y
 
 if __name__ == '__main__':
-    x, static_limit_y = calc_static_limit()
+    x = X
+    static_limit_y = calc_static_limit()
 
-    _, extra_a = calc_grad_a()
+    extra_a = calc_grad_a()
     # plt.plot(x, extra_a)
     # print(extra_a)
     # ebi_x, ebi_y = calc_safev(x, static_limit_y, 紧急制动率)
@@ -128,9 +129,25 @@ if __name__ == '__main__':
     # plt.plot(sbi_x, sbi_y, 'g-')
     # plt.show()
 
-    ebi_x, ebi_y = calc_safev_with_extra_a(x, static_limit_y, extra_a, 紧急制动率)
-    sbi_x, sbi_y = calc_safev_with_extra_a(x, static_limit_y, extra_a, 常用制动率)
-    plt.plot(x, static_limit_y, 'b-')
-    plt.plot(ebi_x, ebi_y, 'r-')
-    plt.plot(sbi_x, sbi_y, 'g-')
-    plt.show()
+    ebi_y = calc_safev_with_extra_a(static_limit_y, extra_a, 紧急制动率)
+    sbi_y = calc_safev_with_extra_a(static_limit_y, extra_a, 常用制动率)
+    # plt.plot(x, static_limit_y, 'b-')
+    # plt.plot(ebi_x, ebi_y, 'r-')
+    # plt.plot(sbi_x, sbi_y, 'g-')
+    # plt.show()
+    fig = go.Figure(data=[
+        go.Scatter(x=x, y=static_limit_y, name='Static Limit'),
+        go.Scatter(x=x, y=ebi_y, name='Emergency Brake'),
+        go.Scatter(x=x, y=sbi_y, name='Service Brake')
+    ])
+    fig.update_layout(
+        title='Braking Curves',
+        xaxis_title='Distance (m)',
+        yaxis_title='Speed (km/h)',
+        xaxis=dict(
+            rangeslider=dict(
+                visible=True
+            )
+        )
+    )
+    fig.show()
