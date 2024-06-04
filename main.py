@@ -116,6 +116,16 @@ def calc_safev_with_extra_a(static_limit_y, extra_a, a, redundant=0) -> List[flo
 
     return y
 
+def calc_v(sbi_y, extra_a) -> List[float]:
+    v: List[float] = [0]
+    for i in range(len(X) - 1):
+        a = 启动加速度 if v[i] < 40 * 10 ** 3 else 牵引加速度
+        newv = np.sqrt(2 * (a + extra_a[i]) * x_step + v[i] ** 2)
+        if newv > sbi_y[i]:
+            newv = sbi_y[i]
+        v.append(newv)
+    return v
+
 if __name__ == '__main__':
     x = X
     static_limit_y = calc_static_limit()
@@ -132,6 +142,7 @@ if __name__ == '__main__':
 
     ebi_y = calc_safev_with_extra_a(static_limit_y, extra_a, 紧急制动率)
     sbi_y = calc_safev_with_extra_a(static_limit_y, extra_a, 常用制动率, ATO余量)
+    v_y = calc_v(sbi_y, extra_a)
     # plt.plot(x, static_limit_y, 'b-')
     # plt.plot(ebi_x, ebi_y, 'r-')
     # plt.plot(sbi_x, sbi_y, 'g-')
@@ -139,7 +150,8 @@ if __name__ == '__main__':
     fig = go.Figure(data=[
         go.Scatter(x=x, y=static_limit_y, name='静态限速'),
         go.Scatter(x=x, y=ebi_y, name='EBI'),
-        go.Scatter(x=x, y=sbi_y, name='SBI')
+        go.Scatter(x=x, y=sbi_y, name='SBI'),
+        go.Scatter(x=x, y=v_y, name='列车运行速度')
     ])
     fig.update_layout(
         title='作业罢了',
