@@ -8,6 +8,7 @@ pip install pandas matplotlib openpyxl numpy scipy
 
 位置为 $x$ 时速度为 $v_m$
 $$
+2ax = v(x_1)^2 - v(x_0)^2\\
 \sqrt{-2ax + v(x_1)^2} = v(x_0)\\
 
 x_0 = x_1 - \delta\\
