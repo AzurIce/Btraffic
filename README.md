@@ -1,7 +1,7 @@
 依赖安装：
 
 ```
-pip install pandas matplotlib openpyxl numpy scipy
+pip install pandas matplotlib openpyxl numpy scipy plotly
 ```
 
 
