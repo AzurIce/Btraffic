@@ -6,32 +6,46 @@ from scipy.interpolate import interp1d
 
 from typing import Callable, List, Sequence, Tuple
 
-启动加速度 = 0.8 # m/s^2
-牵引加速度 = 0.5 # m/s^2
-紧急制动率 = 1.2 # m/s^2
-常用制动率 = 0.5 # m/s^2
-车长 = 80 # m
-制动建立时延 = 0.7 # s
-牵引切断延时 = 0.7 # s
-旋转质量系数 = 1.08
-ATP余量 = 3 # km/h
-ATO余量 = 5 # km/h
-max_distance: float = 24000 # m
-max_speed = 87 # km/h
+# 启动加速度 = 0.8 # m/s^2
+# 牵引加速度 = 0.5 # m/s^2
+# 紧急制动率 = 1.2 # m/s^2
+# 常用制动率 = 0.5 # m/s^2
+# 车长 = 80 # m
+# 制动建立时延 = 0.7 # s
+# 牵引切断延时 = 0.7 # s
+# 旋转质量系数 = 1.08
+# ATP余量 = 3 # km/h
+# ATO余量 = 5 # km/h
+# max_distance: float = 24000 # m
+# max_speed = 87 # km/h
 g = 9.81
 # m = 800 * 10 ** 3 # kg
+
+# Load the Excel file using pandas
+FILE_NAME = '线路条件数据.xlsx'
+basic_info_df = pd.read_excel(FILE_NAME, sheet_name='BasicInfo')
+station_df = pd.read_excel(FILE_NAME, sheet_name='station')
+curve_df = pd.read_excel(FILE_NAME, sheet_name='curve')
+grad_df = pd.read_excel(FILE_NAME, sheet_name='grad')
+
+启动加速度 = basic_info_df.iloc[0, 0] # m/s^2
+牵引加速度 = basic_info_df.iloc[0, 1] # m/s^2
+紧急制动率 = basic_info_df.iloc[0, 2] # m/s^2
+常用制动率 = basic_info_df.iloc[0, 3] # m/s^2
+车长 = basic_info_df.iloc[0, 4] # m
+制动建立时延 = basic_info_df.iloc[0, 5] # s
+牵引切断延时 = basic_info_df.iloc[0, 6] # s
+旋转质量系数 = basic_info_df.iloc[0, 7]
+ATP余量 = basic_info_df.iloc[0, 8] # km/h
+ATO余量 = basic_info_df.iloc[0, 9] # km/h
+max_distance = basic_info_df.iloc[0, 10] # m
+max_speed = basic_info_df.iloc[0, 11] # km/h
 
 # length: x_scale * max_distance
 # index: [0, xscale * max_distance)
 # value: [0, max_distance]
 x_scale = 1
 X = np.arange(0, max_distance, 1 / x_scale).tolist()
-
-# Load the Excel file using pandas
-FILE_NAME = '线路条件数据.xlsx'
-station_df = pd.read_excel(FILE_NAME, sheet_name='station')
-curve_df = pd.read_excel(FILE_NAME, sheet_name='curve')
-grad_df = pd.read_excel(FILE_NAME, sheet_name='grad')
 
 def grad_a(grad, k):
     # grad_degree = np.arctan(grad / 1000)
@@ -137,30 +151,35 @@ def calc_bi(static_limit_kmh, break_a, redundant, extra_a=[0 for i in X]) -> Lis
 
     y = [(x - redundant) / 3.6 for x in static_limit_kmh] # add ato offset and convert from km/h to m/s
 
-    # 制动建立
+    # 考虑制动
     safev = calc_safev(y, break_a, extra_a)
-    y = safev.copy()
 
-    # 考虑延时
+    # 考虑制动建立时延
+    input = safev.copy()
+    res = safev.copy()
     for i in range(1, len(X) + 1):
-        v1 = safev[-i]
+        v1 = input[-i]
 
-        mid_delta_x = v1 * t1
-        max_delta_x = mid_delta_x + v1 * t0 - 0.5 * accel_a * t0 * t0
-
-        for step in range(1, int(mid_delta_x / x_step) + 1):
+        max_delta_x = v1 * t1
+        for step in range(1, int(max_delta_x / x_step) + 1):
             if i + step > len(X):
                 break
-            y[-i - step] = min(y[-i - step], v1)
+            res[-i - step] = min(res[-i - step], v1)
 
-        for step in range(int(mid_delta_x / x_step) + 1, int(max_delta_x / x_step) + 1):
+    # 考虑牵引切断延时
+    input = res.copy()
+    for i in range(1, len(X) + 1):
+        v1 = input[-i]
+
+        max_delta_x = v1 * t0 - 0.5 * accel_a * t0 * t0
+        for step in range(1, int(max_delta_x / x_step) + 1):
             if i + step > len(X):
                 break
             delta_x = step * x_step
-            v = np.sqrt(-2 * accel_a * (delta_x - mid_delta_x) + v1 ** 2)
-            y[-i - step] = min(y[-i - step], v)
+            v = np.sqrt(-2 * accel_a * delta_x + v1 ** 2)
+            res[-i - step] = min(res[-i - step], v)
 
-    return [x * 3.6 for x in y]
+    return [x * 3.6 for x in res]
 
 
 if __name__ == '__main__':
