@@ -56,7 +56,7 @@ def segments_to_points(
 
     return interp_func(X)
 
-# TODO: 第一个站的终端作为发车起点
+# stops = [20]
 stops = [1, 6, 10, 20]
 
 # 启动加速度 = 0.8 # m/s^2
@@ -134,6 +134,7 @@ def calc_static_limit() -> List[float]:
     return segments_to_points(static_limit_segments, default_y=max_speed) # km/h
 
 def calc_v(sbi_y, extra_a) -> List[float]:
+    input = [x / 3.6 for x in sbi_y]
     start = int(station_segments[0][0][0] * x_scale)
     end = int(station_segments[-1][1][0] * x_scale)
 
@@ -141,9 +142,11 @@ def calc_v(sbi_y, extra_a) -> List[float]:
     for i in range(start, end + 1):
         a = 启动加速度 if v[i] < 40 * 10 ** 3 else 牵引加速度
         newv = np.sqrt(2 * (a + extra_a[i]) * (1 / x_scale) + v[i] ** 2)
-        if newv > sbi_y[i]:
-            newv = sbi_y[i]
+        if newv > input[i]:
+            newv = input[i]
         v.append(newv)
+
+    v = [x * 3.6 for x in v]
     return v
 
 def calc_safev(static_limit_ms, a, extra_a=[0 for i in X]) -> List[float]:
@@ -194,6 +197,17 @@ def calc_bi(static_limit_kmh, break_a, redundant, extra_a=[0 for i in X]) -> Lis
 
     return [x * 3.6 for x in res]
 
+def calc_t(v_y, x1, x2):
+    x_segment = np.array(X[x1:x2+1])
+    y_segment = np.array([x / 3.6 for x in v_y[x1:x2+1]]) # km/h
+    # print(y_segment.mean())
+    # print(x_segment)
+    # print(y_segment)
+    y_segment[y_segment==0] = 0.001
+    # print(1/y_segment)
+
+    time = np.trapz(1 / y_segment)
+    return time
 
 if __name__ == '__main__':
     static_limit_kmh = calc_static_limit()
@@ -202,7 +216,7 @@ if __name__ == '__main__':
     ebi_y = calc_bi(static_limit_kmh, 紧急制动率, ATP余量, extra_a)
 
     sbi_y = calc_bi(static_limit_kmh, 常用制动率, ATO余量, extra_a)
-    sbi_y = [x / 3.6 for x in sbi_y]
+    sbi_y = [x / 3.6 for x in sbi_y] # m/s
     for stop in stops:
         station_start, station_end = station_segments[stop]
 
@@ -215,9 +229,9 @@ if __name__ == '__main__':
                 break
             sbi_y[x] = v
             x -= 1
-    sbi_y = [x * 3.6 for x in sbi_y]
+    sbi_y = [x * 3.6 for x in sbi_y] # km/h
 
-    v_y = calc_v(sbi_y, extra_a)
+    v_y = calc_v(sbi_y, extra_a) # km/h
 
     fig = go.Figure(data=[
         go.Scatter(x=X, y=static_limit_kmh, name='静态限速'),
@@ -227,8 +241,13 @@ if __name__ == '__main__':
         go.Scatter(x=X, y=extra_a, name='坡度加速度'),
     ])
 
+    end, start = int(station_segments[stops[-1]][1][0] * x_scale), int(station_segments[0][0][0] * x_scale)
+    dis = end - start # m
+    time_stop = np.sum([station_df.iloc[x, 3] for x in stops] + [station_df.iloc[0, 3]])
+    time = calc_t(v_y, start, end)  # s
+    v = dis / (time + time_stop)
     fig.update_layout(
-        title='作业罢了',
+        title=f'作业罢了 航行速度 = {dis}/({time} + {time_stop}) = {v} m/s = {v * 3.6} km/h',
         xaxis_title='Distance (m)',
         yaxis_title='Speed (km/h)',
         xaxis=dict(
