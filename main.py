@@ -135,7 +135,7 @@ def calc_static_limit() -> List[float]:
 
 def calc_v(sbi_y, extra_a) -> List[float]:
     input = [x / 3.6 for x in sbi_y]
-    start = int(station_segments[0][0][0] * x_scale)
+    start = int(station_segments[0][1][0] * x_scale)
     end = int(station_segments[-1][1][0] * x_scale)
 
     v: List[float] = [0 for i in range(start + 1)]
@@ -203,7 +203,7 @@ def calc_t(v_y, x1, x2):
     # print(y_segment.mean())
     # print(x_segment)
     # print(y_segment)
-    y_segment[y_segment==0] = 0.001
+    y_segment[y_segment==0] = 1
     # print(1/y_segment)
 
     time = np.trapz(1 / y_segment)
@@ -241,7 +241,7 @@ if __name__ == '__main__':
         go.Scatter(x=X, y=extra_a, name='坡度加速度'),
     ])
 
-    end, start = int(station_segments[stops[-1]][1][0] * x_scale), int(station_segments[0][0][0] * x_scale)
+    end, start = int(station_segments[stops[-1]][1][0] * x_scale), int(station_segments[0][1][0] * x_scale)
     dis = end - start # m
     time_stop = np.sum([station_df.iloc[x, 3] for x in stops] + [station_df.iloc[0, 3]])
     time = calc_t(v_y, start, end)  # s
