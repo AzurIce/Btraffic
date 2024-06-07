@@ -203,7 +203,7 @@ def calc_t(v_y, x1, x2):
     # print(y_segment.mean())
     # print(x_segment)
     # print(y_segment)
-    y_segment[y_segment==0] = 1
+    y_segment[y_segment==0] = 999999999
     # print(1/y_segment)
 
     time = np.trapz(1 / y_segment)
